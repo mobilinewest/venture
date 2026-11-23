@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Учёт клиентов</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #fff; --text: #1d2330; --muted: #6b7385; --line: #e3e6eb;
+    --accent: #2f6fde; --accent-soft: #e8f0fd; --danger: #d0453a; --ok: #1f9d55; --warn: #c27c0e;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171d; --panel: #1d2129; --text: #e6e8ec; --muted: #9aa1ae; --line: #2d323c;
+      --accent: #5b8ff0; --accent-soft: #233149; --danger: #ef6b60; --ok: #43c37b; --warn: #e0a640;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 20px 24px 8px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; }
+  main { padding: 0 24px 40px; max-width: 1400px; margin: 0 auto; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 12px 0 18px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+  .stat .label { color: var(--muted); font-size: 12px; }
+  .stat .value { font-size: 20px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .toolbar .grow { flex: 1 1 220px; }
+  input, select, textarea, button {
+    font: inherit; color: inherit; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 10px;
+  }
+  textarea { resize: vertical; min-height: 60px; width: 100%; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  button { cursor: pointer; white-space: nowrap; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.danger { color: var(--danger); }
+  button.link { border: none; background: none; padding: 2px 4px; color: var(--muted); }
+  button.link:hover { color: var(--danger); }
+  .table-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 500; white-space: nowrap; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--accent-soft); }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th.num { text-align: right; }
+  .sub { color: var(--muted); font-size: 12px; }
+  .neg { color: var(--danger); }
+  .pos { color: var(--ok); }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; border: 1px solid currentColor; white-space: nowrap; }
+  .badge.lead { color: var(--warn); } .badge.active { color: var(--ok); } .badge.inactive { color: var(--muted); }
+  .tag { display: inline-block; background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 0 6px; margin: 1px 2px 1px 0; font-size: 12px; }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+
+  dialog { border: none; border-radius: 14px; padding: 0; width: min(880px, calc(100vw - 32px)); max-height: calc(100vh - 32px);
+           background: var(--panel); color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+  dialog::backdrop { background: rgba(10, 14, 20, .45); }
+  .dlg-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); z-index: 1; }
+  .dlg-head h2 { margin: 0; font-size: 18px; }
+  .dlg-body { padding: 16px 20px 20px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
+  .dlg-body > * { min-width: 0; }
+  dialog { overflow-x: hidden; }
+  .form input, .form select, .add-form input, .add-form select { width: 100%; min-width: 0; }
+  .dlg-body.single { grid-template-columns: minmax(0, 1fr); }
+  @media (max-width: 760px) { .dlg-body { grid-template-columns: minmax(0, 1fr); } header, main { padding-left: 16px; padding-right: 16px; } }
+  .form { display: grid; gap: 10px; }
+  .form label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+  .form label input, .form label select, .form label textarea { color: var(--text); font-size: 14px; }
+  .row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  .actions { display: flex; gap: 8px; justify-content: space-between; margin-top: 4px; }
+  h3 { margin: 0 0 8px; font-size: 14px; }
+  .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .summary div { border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  .summary b { display: block; font-variant-numeric: tabular-nums; }
+  .history { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; max-height: 360px; overflow-y: auto; }
+  .history li { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; }
+  .history .desc { grid-column: 1 / -1; white-space: pre-wrap; word-break: break-word; }
+  .add-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .add-form textarea { grid-column: 1 / -1; min-height: 48px; }
+  .add-form button { grid-column: 1 / -1; }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg);
+           padding: 10px 16px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 100; max-width: 90vw; }
+  #toast.show { opacity: 1; }
+  #toast.error { background: var(--danger); color: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Учёт клиентов</h1>
+  <span class="sub" id="count"></span>
+</header>
+<main>
+  <section class="stats" id="stats"></section>
+
+  <div class="toolbar">
+    <input class="grow" id="q" type="search" placeholder="Поиск: имя, телефон, email, компания, тег…">
+    <select id="status">
+      <option value="">Все статусы</option>
+      <option value="lead">Потенциальные</option>
+      <option value="active">Активные</option>
+      <option value="inactive">Неактивные</option>
+    </select>
+    <select id="tag"><option value="">Все теги</option></select>
+    <select id="sort">
+      <option value="name">По имени</option>
+      <option value="updated">Недавно изменённые</option>
+      <option value="created">Новые</option>
+      <option value="revenue">По сумме заказов</option>
+      <option value="last_contact">По последнему контакту</option>
+    </select>
+    <button class="primary" id="btn-new">+ Новый клиент</button>
+    <button id="btn-export">Экспорт CSV</button>
+    <button id="btn-import">Импорт CSV</button>
+    <input type="file" id="file-import" accept=".csv,text/csv" hidden>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Клиент</th><th>Контакты</th><th>Статус</th><th>Теги</th>
+          <th class="num">Заказы</th><th class="num">Баланс</th><th>Последний контакт</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" hidden></div>
+  </div>
+</main>
+
+<dialog id="dlg">
+  <div class="dlg-head">
+    <h2 id="dlg-title">Клиент</h2>
+    <button class="link" id="dlg-close" aria-label="Закрыть" style="font-size:20px">×</button>
+  </div>
+  <div class="dlg-body" id="dlg-body">
+    <form class="form" id="client-form" autocomplete="off">
+      <label>Имя / ФИО *<input name="name" required maxlength="200"></label>
+      <div class="row2">
+        <label>Телефон<input name="phone" type="tel" maxlength="50"></label>
+        <label>Email<input name="email" type="email" maxlength="200"></label>
+      </div>
+      <div class="row2">
+        <label>Компания<input name="company" maxlength="200"></label>
+        <label>Статус
+          <select name="status">
+            <option value="lead">Потенциальный</option>
+            <option value="active">Активный</option>
+            <option value="inactive">Неактивный</option>
+          </select>
+        </label>
+      </div>
+      <label>Адрес<input name="address" maxlength="300"></label>
+      <label>Теги (через запятую)<input name="tags" placeholder="VIP, опт, Москва" maxlength="300"></label>
+      <label>Заметки<textarea name="notes" rows="3"></textarea></label>
+      <div class="actions">
+        <button type="button" class="danger" id="btn-delete">Удалить</button>
+        <button type="submit" class="primary">Сохранить</button>
+      </div>
+    </form>
+
+    <section id="history-section">
+      <div class="summary">
+        <div><span class="sub">Заказы</span><b id="s-orders">0</b></div>
+        <div><span class="sub">Оплачено</span><b id="s-paid">0</b></div>
+        <div><span class="sub">Баланс</span><b id="s-balance">0</b></div>
+      </div>
+      <h3>Добавить запись</h3>
+      <form class="add-form" id="int-form">
+        <select name="type">
+          <option value="note">Заметка</option>
+          <option value="call">Звонок</option>
+          <option value="meeting">Встреча</option>
+          <option value="email">Письмо</option>
+          <option value="order">Заказ</option>
+          <option value="payment">Оплата</option>
+        </select>
+        <input name="date" type="date">
+        <input name="amount" type="number" min="0" step="0.01" placeholder="Сумма">
+        <textarea name="description" placeholder="Описание"></textarea>
+        <button type="submit">Добавить</button>
+      </form>
+      <h3 style="margin-top:16px">История</h3>
+      <ul class="history" id="history"></ul>
+    </section>
+  </div>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const STATUS = { lead: "Потенциальный", active: "Активный", inactive: "Неактивный" };
+const TYPES = { note: "Заметка", call: "Звонок", meeting: "Встреча", email: "Письмо", order: "Заказ", payment: "Оплата" };
+const money = n => Number(n || 0).toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + " ₽";
+const fmtDate = d => d ? new Date(d.length === 10 ? d + "T00:00" : d).toLocaleDateString("ru-RU") : "—";
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+
+let current = null; // id открытого клиента
+
+function toast(msg, isError = false) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.className = "show" + (isError ? " error" : "");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.className = "", 2600);
+}
+
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    ...options,
+    headers: options.body && typeof options.body === "string" && !options.raw ? { "Content-Type": "application/json" } : {},
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Ошибка " + res.status);
+  return data;
+}
+
+function filters() {
+  const p = new URLSearchParams();
+  for (const id of ["q", "status", "tag", "sort"]) { const v = $("#" + id).value.trim(); if (v) p.set(id, v); }
+  return p.toString();
+}
+
+async function loadStats() {
+  const s = await api("/api/stats");
+  $("#stats").innerHTML = [
+    ["Всего клиентов", s.total],
+    ["Активные", s.by_status.active],
+    ["Потенциальные", s.by_status.lead],
+    ["Сумма заказов", money(s.total_orders)],
+    ["Оплачено", money(s.total_paid)],
+    ["Задолженность", `<span class="${s.debt > 0 ? "neg" : ""}">${money(s.debt)}</span> <span class="sub">(${s.debtors})</span>`],
+  ].map(([l, v]) => `<div class="stat"><div class="label">${l}</div><div class="value">${v}</div></div>`).join("");
+  const sel = $("#tag"), cur = sel.value;
+  sel.innerHTML = `<option value="">Все теги</option>` + s.tags.map(t => `<option>${esc(t)}</option>`).join("");
+  sel.value = s.tags.includes(cur) ? cur : "";
+}
+
+async function loadClients() {
+  const list = await api("/api/clients?" + filters());
+  $("#count").textContent = list.length ? `показано: ${list.length}` : "";
+  $("#rows").innerHTML = list.map(c => `
+    <tr data-id="${c.id}">
+      <td><b>${esc(c.name)}</b>${c.company ? `<div class="sub">${esc(c.company)}</div>` : ""}</td>
+      <td>${esc(c.phone) || ""}${c.email ? `<div class="sub">${esc(c.email)}</div>` : ""}</td>
+      <td><span class="badge ${c.status}">${STATUS[c.status]}</span></td>
+      <td>${c.tags ? c.tags.split(",").map(t => `<span class="tag">${esc(t.trim())}</span>`).join("") : ""}</td>
+      <td class="num">${c.total_orders ? money(c.total_orders) : "—"}</td>
+      <td class="num ${c.balance < 0 ? "neg" : c.balance > 0 ? "pos" : ""}">${c.total_orders || c.total_paid ? money(c.balance) : "—"}</td>
+      <td>${fmtDate(c.last_contact)}</td>
+    </tr>`).join("");
+  const empty = $("#empty");
+  empty.hidden = list.length > 0;
+  empty.textContent = filters().replace(/sort=[^&]*/, "") ? "Ничего не найдено" : "Клиентов пока нет — нажмите «Новый клиент»";
+}
+
+const refresh = () => Promise.all([loadStats(), loadClients()]).catch(e => toast(e.message, true));
+
+function fillForm(c) {
+  const f = $("#client-form");
+  for (const k of ["name", "phone", "email", "company", "address", "status", "tags", "notes"]) f.elements[k].value = c[k] ?? "";
+  if (!c.status) f.elements.status.value = "lead";
+}
+
+function renderDetails(c) {
+  $("#s-orders").textContent = money(c.total_orders);
+  $("#s-paid").textContent = money(c.total_paid);
+  const b = $("#s-balance");
+  b.textContent = money(c.balance);
+  b.className = c.balance < 0 ? "neg" : c.balance > 0 ? "pos" : "";
+  $("#history").innerHTML = c.interactions.length ? c.interactions.map(i => `
+    <li>
+      <span><b>${TYPES[i.type]}</b> <span class="sub">· ${fmtDate(i.date)}</span>
+        ${i.amount ? ` · <b class="${i.type === "payment" ? "pos" : ""}">${money(i.amount)}</b>` : ""}</span>
+      <button class="link" data-del="${i.id}" title="Удалить запись">✕</button>
+      ${i.description ? `<span class="desc">${esc(i.description)}</span>` : ""}
+    </li>`).join("") : `<li class="sub" style="display:block">Записей пока нет</li>`;
+}
+
+async function openClient(id) {
+  current = id;
+  const body = $("#dlg-body");
+  $("#int-form").reset();
+  $("#int-form").elements.date.value = today();
+  if (id) {
+    try {
+      const c = await api("/api/clients/" + id);
+      fillForm(c); renderDetails(c);
+      $("#dlg-title").textContent = c.name;
+    } catch (e) { return toast(e.message, true); }
+    body.classList.remove("single");
+    $("#history-section").hidden = false;
+    $("#btn-delete").hidden = false;
+  } else {
+    fillForm({});
+    $("#dlg-title").textContent = "Новый клиент";
+    body.classList.add("single");
+    $("#history-section").hidden = true;
+    $("#btn-delete").hidden = true;
+  }
+  if (!$("#dlg").open) $("#dlg").showModal();
+  $("#client-form").elements.name.focus();
+}
+
+// ---------- события ----------
+
+let debounce;
+$("#q").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(loadClients, 200); });
+for (const id of ["status", "tag", "sort"]) $("#" + id).addEventListener("change", loadClients);
+
+$("#rows").addEventListener("click", e => { const tr = e.target.closest("tr[data-id]"); if (tr) openClient(+tr.dataset.id); });
+$("#btn-new").addEventListener("click", () => openClient(null));
+$("#dlg-close").addEventListener("click", () => $("#dlg").close());
+$("#dlg").addEventListener("click", e => { if (e.target === $("#dlg")) $("#dlg").close(); });
+
+$("#client-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target));
+  try {
+    if (current) {
+      const c = await api("/api/clients/" + current, { method: "PUT", body: JSON.stringify(data) });
+      $("#dlg-title").textContent = c.name;
+      toast("Сохранено");
+    } else {
+      const c = await api("/api/clients", { method: "POST", body: JSON.stringify(data) });
+      toast("Клиент добавлен");
+      await openClient(c.id);
+    }
+    refresh();
+  } catch (err) { toast(err.message, true); }
+});
+
+$("#btn-delete").addEventListener("click", async () => {
+  if (!current || !confirm("Удалить клиента и всю его историю? Это действие нельзя отменить.")) return;
+  try {
+    await api("/api/clients/" + current, { method: "DELETE" });
+    $("#dlg").close(); toast("Клиент удалён"); refresh();
+  } catch (err) { toast(err.message, true); }
+});
+
+$("#int-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target));
+  try {
+    await api(`/api/clients/${current}/interactions`, { method: "POST", body: JSON.stringify(data) });
+    e.target.reset(); e.target.elements.date.value = today();
+    renderDetails(await api("/api/clients/" + current));
+    refresh();
+  } catch (err) { toast(err.message, true); }
+});
+
+$("#history").addEventListener("click", async e => {
+  const id = e.target.dataset.del;
+  if (!id || !confirm("Удалить эту запись?")) return;
+  try {
+    await api("/api/interactions/" + id, { method: "DELETE" });
+    renderDetails(await api("/api/clients/" + current));
+    refresh();
+  } catch (err) { toast(err.message, true); }
+});
+
+$("#btn-export").addEventListener("click", () => { location.href = "/api/export.csv?" + filters(); });
+$("#btn-import").addEventListener("click", () => $("#file-import").click());
+$("#file-import").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    const r = await api("/api/import", { method: "POST", body: await file.text(), raw: true });
+    toast(`Импортировано: ${r.created}` + (r.errors.length ? `, ошибок: ${r.errors.length}` : ""), r.errors.length > 0);
+    if (r.errors.length) console.warn(r.errors.join("\n"));
+    refresh();
+  } catch (err) { toast(err.message, true); }
+});
+
+refresh();
+</script>
+</body>
+</html>
